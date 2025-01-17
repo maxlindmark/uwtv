@@ -1,0 +1,248 @@
+---
+title: "Fit length models"
+author: "Max Lindmark"
+date: today
+date-format: iso
+toc: true
+format: 
+  html:
+    page-layout: full
+    embed-resources: true
+knitr: 
+  opts_chunk:
+    fig.align: center
+    out-width: 100%
+editor: source
+---
+
+## Load libraries
+
+```{r load libraries}
+#| message: false
+#| warning: false
+
+# Load libraries
+library(tidyverse)
+library(tidylog)
+library(sdmTMB)
+library(patchwork)
+library(viridis)
+library(RColorBrewer)
+library(modelr)
+library(ggstats)
+library(ggspatial)
+library(ggsidekick)
+theme_set(theme_sleek())
+
+home <- here::here()
+
+source(paste0(home, "/R/functions/map-plot.R"))
+```
+
+Read data and prediction grid, scale variables
+
+```{r data}
+#| message: false
+# Read data
+
+d1 <- readRDS(paste0(home, "/data/ibts_points_in_uv_kust_polygon.rds")) # ibts
+d2 <- readRDS(paste0(home, "/data/kust_points_in_uv_polygon_4326.rds")) # kust i UW
+d3 <- readRDS(paste0(home, "/data/kust_points_outside_uv_polygon_4326.rds")) # kust utanför UW
+
+d <- bind_rows(d1 |> mutate(Survey = "IBTS"),
+               d2 |> mutate(Survey = "CTS", Quarter = 3),
+               d3 |> mutate(Survey = "CTS", Quarter = 3)) |> 
+  add_utm_columns(ll_names = c("long_stop_dec", "lat_stop_dec")) |> 
+  st_drop_geometry() |> 
+  mutate(haul_id = paste(Year, Quarter, X, Y, Survey, sep = "_"),
+         haul_id = as.factor(haul_id)) |> 
+  ungroup()
+
+# Summarise by haul
+catch <- d |> 
+  summarise(kg_km2 = sum(no_litter_per_km2), .by = haul_id)
+
+catch <- catch |> 
+  left_join(d |>
+              distinct(haul_id, .keep_all = TRUE) |> 
+              dplyr::select(X, Y, lat_stop_dec, long_stop_dec, haul_id) |> 
+              rename(lat = lat_stop_dec,
+                     lon = long_stop_dec),
+            by = "haul_id") |> 
+  separate(haul_id, sep = "_", into = c("year", "quarter", "X", "Y", "survey"), remove = FALSE) |> 
+  mutate(survey = as.factor(survey),
+         year_f = as.factor(year),
+         year = as.integer(year),
+         X = as.integer(X),
+         Y = as.integer(Y))
+
+# Read prediction grid
+pred_grid <- read_csv(paste0(home, "/data/pred_grid.csv")) |> 
+  mutate(year = as.integer(year),
+         year_f = as.factor(year),
+         survey = "IBTS")
+```
+
+##  Plot data
+
+```{r}
+# Add UWTV as well
+
+d4 <- read_csv(paste0(home, "/data/Megafauna_stn_litter.csv")) |> 
+  rename(lon = Lon, 
+         lat = Lat) |> 
+  add_utm_columns(ll_names = c("lon", "lat")) |> 
+  mutate(survey = "UWTV",
+         year = 2024)
+
+pd <- bind_rows(catch, d4)
+
+plot_map + 
+  geom_point(data = pd,
+             aes(X*1000, Y*1000, color = survey), size = 0.8) +
+  #Annotate works well when not faceting... need to ggsave to make sure
+  # annotate("text", label = "Sweden", color = "gray50", size = 5,
+  #          x = Inf, y = Inf, hjust = 1.5, vjust = 20) +
+  # annotate("text", label = "Norway", color = "gray50", size = 5,
+  #          x = Inf, y = Inf, hjust = 3.2, vjust = 2) +
+  # annotate("text", label = "Denmark", color = "gray50", size = 5,
+  #          x = Inf, y = Inf, hjust = 5.3, vjust = 55) +
+  facet_wrap(~year, ncol = 7) + 
+  theme(legend.position.inside = c(0.95, 0.2)) + 
+  scale_color_brewer(palette = "Dark2", name = "Survey") +
+  guides(color = guide_legend(position = "inside"))
+
+ggsave(paste0(home, paste("/figures/map.pdf")), width = 20, height = 14, units = "cm")
+```
+
+## Fit models
+
+```{r}
+mesh <- make_mesh(catch, xy_cols = c("X", "Y"), cutoff = 3)
+
+ggplot() +
+  inlabru::gg(mesh$mesh) +
+  coord_fixed() +
+  geom_point(aes(X, Y), data = catch, alpha = 0.2, size = 0.5) +
+  annotate("text", -Inf, Inf, label = paste("n knots = ", mesh$mesh$n), hjust = -0.1, vjust = 2) +
+  labs(x = "Easting (km)", y = "Northing (km)")
+
+ggsave(paste0(home, "/figures/supp/mesh.pdf"), width = 14, height = 14, units = "cm")
+
+fit1 <- sdmTMB(kg_km2 ~ year_f + survey,
+               data = catch,
+               mesh = mesh,
+               anisotropy = TRUE,
+               family = delta_gamma(type = "poisson-link"),
+               spatiotemporal = "off",
+               spatial = "on",
+               time = "year")
+
+fit2 <- sdmTMB(kg_km2 ~ year_f + survey,
+               data = catch,
+               mesh = mesh,
+               anisotropy = TRUE,
+               family = delta_gamma(type = "poisson-link"),
+               spatiotemporal = "ar1",
+               spatial = "off",
+               time = "year")
+
+fit3 <- sdmTMB(kg_km2 ~ year_f + survey,
+               data = catch,
+               mesh = mesh,
+               anisotropy = TRUE,
+               family = delta_gamma(type = "poisson-link"),
+               spatiotemporal = "rw",
+               spatial = "off",
+               time = "year")
+
+
+fit4 <- sdmTMB(kg_km2 ~ year_f + survey,
+               data = catch,
+               mesh = mesh,
+               anisotropy = TRUE,
+               family = delta_gamma(type = "poisson-link"),
+               spatial = list("on", "off"),
+               spatiotemporal = list("off", "ar1"),
+               time = "year")
+
+AIC(fit, fit2, fit3, fit4)
+
+# Residuals
+res <- simulate(fit2, nsim = 1000, type = "mle-mvn") |>
+  dharma_residuals(fit2)
+
+ggplot(res, aes(observed, expected)) +
+  geom_point(color = "grey30", shape = 21, size = 0.5) +
+  geom_abline(col = "tomato3", linewidth = 0.6) +
+  theme(aspect.ratio = 1) +
+  labs(x = "Observed", y = "Expected")
+
+ggsave(paste0(home, "/figures/supp/residuals.pdf"), width = 11, height = 11, units = "cm")
+
+
+# Get spatial predictions
+p <- predict(fit2, newdata = pred_grid)
+
+p1 <- plot_map + 
+  geom_raster(data = p |> filter(year %in% c(2012, 2016, 2018, 2022)),
+              aes(X*1000, Y*1000, fill = exp(epsilon_st1))) + 
+  geom_sf() + 
+  facet_wrap(~year, ncol = 4) + 
+  scale_fill_gradient2(midpoint = 1, name = "Spatiotemporal random effect (binomial model)") + 
+  guides(fill = guide_colorbar(title.position = "top")) +
+  theme(legend.position = "bottom",
+        axis.text.x = element_blank(),
+        axis.title.x = element_blank())
+  
+p2 <- plot_map + 
+  geom_raster(data = p |> filter(year %in% c(2012, 2016, 2018, 2022)),
+              aes(X*1000, Y*1000, fill = exp(epsilon_st2))) + 
+  geom_sf() + 
+  facet_wrap(~year, ncol = 4) + 
+  #scale_fill_gradient2(midpoint = 1) + 
+  # theme(legend.position.inside = c(0.95, 0.2)) + 
+  guides(fill = guide_colorbar(title.position = "top")) +
+  scale_fill_gradient2(midpoint = 1, name = "Spatiotemporal random effect (Gamma model)") 
+
+p1 / p2
+
+ggsave(paste0(home, "/figures/spatial_random.pdf"), width = 14, height = 17, units = "cm")
+
+plot_map + 
+  geom_raster(data = p, aes(X*1000, Y*1000, fill = exp(est1 + est2))) + 
+  geom_sf() + 
+  facet_wrap(~year, ncol = 7) + 
+  theme(legend.position.inside = c(0.95, 0.2)) + 
+  guides(fill = guide_legend(position = "inside")) + 
+  scale_fill_viridis_c(
+    name = "Predicted\nlitter\ndensity",
+    trans = "sqrt",
+    # trim extreme high values to make spatial variation more visible
+    na.value = "yellow", limits = c(0, quantile(exp(p$est1 + p$est2), 0.995))
+  )
+
+quantile(exp(p$est1 + p$est2), 0.995)
+
+ggsave(paste0(home, "/figures/spatial_pred.pdf"), width = 20, height = 14, units = "cm")
+
+# Get index - density
+p_ind1 <- predict(fit2, newdata = pred_grid, return_tmb_object = TRUE)
+p_ind2 <- predict(fit2, newdata = pred_grid |> mutate(survey = "CTS"), return_tmb_object = TRUE) 
+
+ind1 <- get_index(p_ind1, area = 4, bias_correct = TRUE)
+ind2 <- get_index(p_ind2, area = 4, bias_correct = TRUE)
+
+ind <- bind_rows(ind1 |> mutate(Survey = "IBTS"),
+                 ind2 |> mutate(Survey = "CTS"))
+
+ggplot(ind, aes(year, est, color = Survey, fill = Survey)) +
+  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2, color = NA) +
+  geom_line(alpha = 0.8) +
+  theme(strip.text = element_text(face = "italic")) +
+  scale_color_brewer(palette = "Dark2") +
+  scale_fill_brewer(palette = "Dark2") +
+  labs(x = "Year", y = "Relative litter weight")
+
+ggsave(paste0(home, "/figures/index.pdf"), width = 14, height = 10, units = "cm")
+```

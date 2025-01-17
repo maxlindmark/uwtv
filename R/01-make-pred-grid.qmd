@@ -1,0 +1,129 @@
+---
+title: "Make prediction grid"
+author: "Max Lindmark"
+date: today
+date-format: iso
+toc: true
+format: 
+  html:
+    page-layout: full
+    embed-resources: true
+knitr: 
+  opts_chunk:
+    fig.align: center
+    out-width: 100%
+editor: source
+---
+
+## Load libraries
+
+```{r}
+# https://github.com/pbs-assess/gfvelocities/blob/main/R/make_prediction_grid.R
+library(sdmTMB)
+library(tidyverse)
+library(tidylog)
+library(sp)
+library(raster)
+library(terra)
+library(devtools)
+
+home <- here::here()
+
+# Source code for map plots
+source(paste0(home, "/R/functions/map-plot.R"))
+```
+
+## Pred grid
+
+```{r}
+# Read data
+d1 <- readRDS(paste0(home, "/data/ibts_points_in_uv_kust_polygon.rds")) # ibts
+d2 <- readRDS(paste0(home, "/data/kust_points_in_uv_polygon_4326.rds")) # kust i UW
+d3 <- readRDS(paste0(home, "/data/kust_points_outside_uv_polygon_4326.rds"))
+
+d <- bind_rows(d1 |> mutate(survey = "ibts"),
+               d2 |> mutate(survey = "coastal"),
+               d3 |> mutate(survey = "coastal")) |> 
+  add_utm_columns(ll_names = c("long_stop_dec", "lat_stop_dec")) |> 
+  st_drop_geometry() |> 
+  mutate(haul_id = paste(Year, Quarter, StNo, HaulNo, sep = "_"),
+         haul_id = as.factor(haul_id)) |> 
+  ungroup()
+
+x <- d$X
+y <- d$Y
+
+z <- chull(x, y)
+
+coords <- cbind(x[z], y[z])
+coords <- rbind(coords, coords[1, ])
+
+plot(coords[, 1] ~ coords[, 2]) # plot data
+
+sp_poly <- sp::SpatialPolygons(
+  list(sp::Polygons(list(sp::Polygon(coords)), ID = 1))
+  )
+
+sp_poly_df <- sp::SpatialPolygonsDataFrame(sp_poly,
+                                           data = data.frame(ID = 1)
+                                           )
+class(sp_poly_df)
+class(sp_poly)
+
+plot(sp_poly)
+plot(sp_poly_df)
+
+cell_width <- 2 # 2*2 km grid cell
+
+pred_grid <- expand.grid(
+  X = seq(min(d$X), max(d$X), cell_width),
+  Y = seq(min(d$Y), max(d$Y), cell_width),
+  year = unique(d$Year)
+  )
+
+ggplot(pred_grid |> filter(year == 2019), aes(X, Y)) +
+  geom_point(size = 0.1) +
+  theme_void() +
+  coord_sf()
+
+sp::coordinates(pred_grid) <- c("X", "Y")
+
+inside <- !is.na(sp::over(pred_grid, as(sp_poly_df, "SpatialPolygons")))
+
+pred_grid <- pred_grid[inside, ]
+
+pred_grid <- as.data.frame(pred_grid)
+
+plot_map +
+  geom_point(data = pred_grid, aes(X*1000, Y*1000), size = 0.001, alpha = 0.5) +
+  facet_wrap(~year, ncol = 7) +
+  geom_sf(size = 0.1) +
+  NULL
+
+# Add lat and lon
+xy <- as.matrix(pred_grid |> dplyr::select(X, Y) |> mutate(X = X*1000, Y = Y*1000))
+v <- vect(xy, crs="+proj=utm +zone=32 +datum=WGS84  +units=m")
+y <- project(v, "+proj=longlat +datum=WGS84")
+lonlat <- geom(y)[, c("x", "y")]
+
+pred_grid$lon <- lonlat[, 1]
+pred_grid$lat <- lonlat[, 2]
+
+# Add depth
+# dep_raster <- terra::rast("data/Mean depth natural colour (with land).nc")
+# 
+# crs(dep_raster, proj = TRUE)
+# 
+# plot(dep_raster)
+# 
+# pred_grid$depth_rast <- terra::extract(dep_raster, 
+#                                        pred_grid |> 
+#                                          dplyr::select(lon, lat))$elevation
+
+plot_map + 
+  geom_raster(data = pred_grid, aes(X*1000, Y*1000)) +
+  geom_sf(size = 0.1)
+
+# Save
+write_csv(pred_grid, paste0(home, "/data/pred_grid.csv"))
+```
