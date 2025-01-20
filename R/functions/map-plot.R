@@ -27,44 +27,26 @@ swe_coast_proj <- sf::st_transform(swe_coast, crs = utm_zone33)
 ggplot(swe_coast_proj) + 
   geom_sf()
 
-# Define plotting theme for main plot
-theme_plot <- function(base_size = 11, base_family = "") {
-  theme_light(base_size = base_size, base_family = "") +
-    theme(
-      axis.text = element_text(color = "grey5"),
-      legend.position = "bottom",
-      legend.key.height = unit(0.2, "cm"),
-      legend.margin = margin(0, 0, 0, 0),
-      legend.box.margin = margin(-5, -5, -5, -5),
-      strip.background = element_rect(fill = "grey95"),
-      strip.text = element_text(color = "grey10"),
-      strip.text.x = element_text(margin = margin(b = 2, t = 2), color = "grey10", size = 10),
-      panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
-      panel.background = element_blank()
-      #, axis.line = element_line(colour = "grey20"),
-    )
-}
-
 # Define plotting theme for facet_wrap map with years
-theme_facet_map <- function(base_size = 10, base_family = "") {
-  theme_light(base_size = 10, base_family = "") +
+theme_facet_map <- function(base_size = 11, base_family = "") {
+  theme_sleek(base_size = base_size, base_family = "") +
     theme(
-      axis.text.x = element_text(angle = 90),
-      axis.text = element_text(size = 6),
-      strip.background = element_rect(fill = "gray95"),
-      strip.text = element_text(margin = margin(b = 2, t = 2), color = "grey10", size = 9), 
-      #legend.position = c(0.82, 0.04),
-      legend.position = "bottom"
-      #legend.direction = "horizontal"
+      legend.direction = "horizontal",
+      legend.margin = margin(1, 1, 1, 1),
+      legend.box.margin = margin(0, 0, 0, 0),
+      legend.key.height = unit(0.4, "line"),
+      legend.key.width = unit(2, "line"),
+      legend.spacing.x = unit(0.1, 'cm'),
+      legend.position = "bottom",
     )
 }
 
 # Make default base map plot
 #sf::st_boundary(swe_coast_proj)
 
-xmin2 <- 580000
-xmax2 <- 893074.5*0.77
-ymin2 <- 5983578*1.058
+xmin2 <- 570500
+xmax2 <- 893074.5*0.79
+ymin2 <- 5983578*1.055
 ymax2 <- 6691902*0.98
 
 plot_map <-
@@ -73,7 +55,7 @@ plot_map <-
   ylim(ymin2, ymax2) +
   labs(x = "Longitude", y = "Latitude") +
   geom_sf(size = 0.3) +
-  theme_plot() +
+  theme_facet_map() +
   theme(axis.text.x = element_text(angle = 90)) +
   #guides(fill = guide_legend(title.position = "top", title.hjust = 0.5)) +
   NULL

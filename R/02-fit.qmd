@@ -30,6 +30,7 @@ library(viridis)
 library(RColorBrewer)
 library(modelr)
 library(ggstats)
+library(ggtext)
 library(ggspatial)
 library(ggsidekick)
 theme_set(theme_sleek())
@@ -60,7 +61,7 @@ d <- bind_rows(d1 |> mutate(Survey = "IBTS"),
 
 # Summarise by haul
 catch <- d |> 
-  summarise(kg_km2 = sum(no_litter_per_km2), .by = haul_id)
+  summarise(no_km2 = sum(no_litter_per_km2), .by = haul_id)
 
 catch <- catch |> 
   left_join(d |>
@@ -98,6 +99,7 @@ d4 <- read_csv(paste0(home, "/data/Megafauna_stn_litter.csv")) |>
 pd <- bind_rows(catch, d4)
 
 plot_map + 
+  geom_sf(fill = "grey97", color = "grey70") + 
   geom_point(data = pd,
              aes(X*1000, Y*1000, color = survey), size = 0.8) +
   #Annotate works well when not faceting... need to ggsave to make sure
@@ -107,12 +109,14 @@ plot_map +
   #          x = Inf, y = Inf, hjust = 3.2, vjust = 2) +
   # annotate("text", label = "Denmark", color = "gray50", size = 5,
   #          x = Inf, y = Inf, hjust = 5.3, vjust = 55) +
-  facet_wrap(~year, ncol = 7) + 
-  theme(legend.position.inside = c(0.95, 0.2)) + 
+  facet_wrap(~year, ncol = 5) + 
+  theme(legend.position.inside = c(0.81, 0.14),
+        legend.direction = "vertical") + 
   scale_color_brewer(palette = "Dark2", name = "Survey") +
-  guides(color = guide_legend(position = "inside"))
+  guides(color = guide_legend(position = "inside", 
+                              override.aes = list(size = 2)))
 
-ggsave(paste0(home, paste("/figures/map.pdf")), width = 20, height = 14, units = "cm")
+ggsave(paste0(home, paste("/figures/map.pdf")), width = 17, height = 19, units = "cm")
 ```
 
 ## Fit models
@@ -129,7 +133,7 @@ ggplot() +
 
 ggsave(paste0(home, "/figures/supp/mesh.pdf"), width = 14, height = 14, units = "cm")
 
-fit1 <- sdmTMB(kg_km2 ~ year_f + survey,
+fit1 <- sdmTMB(no_km2 ~ year_f + survey,
                data = catch,
                mesh = mesh,
                anisotropy = TRUE,
@@ -138,7 +142,7 @@ fit1 <- sdmTMB(kg_km2 ~ year_f + survey,
                spatial = "on",
                time = "year")
 
-fit2 <- sdmTMB(kg_km2 ~ year_f + survey,
+fit2 <- sdmTMB(no_km2 ~ year_f + survey,
                data = catch,
                mesh = mesh,
                anisotropy = TRUE,
@@ -147,7 +151,7 @@ fit2 <- sdmTMB(kg_km2 ~ year_f + survey,
                spatial = "off",
                time = "year")
 
-fit3 <- sdmTMB(kg_km2 ~ year_f + survey,
+fit3 <- sdmTMB(no_km2 ~ year_f + survey,
                data = catch,
                mesh = mesh,
                anisotropy = TRUE,
@@ -157,7 +161,7 @@ fit3 <- sdmTMB(kg_km2 ~ year_f + survey,
                time = "year")
 
 
-fit4 <- sdmTMB(kg_km2 ~ year_f + survey,
+fit4 <- sdmTMB(no_km2 ~ year_f + survey,
                data = catch,
                mesh = mesh,
                anisotropy = TRUE,
@@ -166,7 +170,7 @@ fit4 <- sdmTMB(kg_km2 ~ year_f + survey,
                spatiotemporal = list("off", "ar1"),
                time = "year")
 
-AIC(fit, fit2, fit3, fit4)
+AIC(fit1, fit2, fit3, fit4)
 
 # Residuals
 res <- simulate(fit2, nsim = 1000, type = "mle-mvn") |>
@@ -187,44 +191,51 @@ p <- predict(fit2, newdata = pred_grid)
 p1 <- plot_map + 
   geom_raster(data = p |> filter(year %in% c(2012, 2016, 2018, 2022)),
               aes(X*1000, Y*1000, fill = exp(epsilon_st1))) + 
-  geom_sf() + 
+  geom_sf(fill = "grey97", color = "grey70") + 
   facet_wrap(~year, ncol = 4) + 
-  scale_fill_gradient2(midpoint = 1, name = "Spatiotemporal random effect (binomial model)") + 
+  scale_fill_gradient2(midpoint = 1, name = "Spatiotemporal\nrandom effect\n(binomial model)") + 
   guides(fill = guide_colorbar(title.position = "top")) +
-  theme(legend.position = "bottom",
+  theme(legend.position = "right",
+        legend.direction = "vertical",
+        legend.key.width = unit(0.4, "cm"),
         axis.text.x = element_blank(),
         axis.title.x = element_blank())
   
 p2 <- plot_map + 
   geom_raster(data = p |> filter(year %in% c(2012, 2016, 2018, 2022)),
               aes(X*1000, Y*1000, fill = exp(epsilon_st2))) + 
-  geom_sf() + 
+  geom_sf(fill = "grey97", color = "grey70") + 
   facet_wrap(~year, ncol = 4) + 
   #scale_fill_gradient2(midpoint = 1) + 
   # theme(legend.position.inside = c(0.95, 0.2)) + 
   guides(fill = guide_colorbar(title.position = "top")) +
-  scale_fill_gradient2(midpoint = 1, name = "Spatiotemporal random effect (Gamma model)") 
+  scale_fill_gradient2(midpoint = 1, name = "Spatiotemporal\nrandom effect\n(Gamma model)") +
+  theme(legend.position = "right",
+        legend.key.width = unit(0.4, "cm"),
+        legend.direction = "vertical")
 
-p1 / p2
+(p1 / p2) + plot_annotation(tag_levels = "A")
 
-ggsave(paste0(home, "/figures/spatial_random.pdf"), width = 14, height = 17, units = "cm")
+ggsave(paste0(home, "/figures/spatial_random.pdf"), width = 18, height = 16, units = "cm")
 
 plot_map + 
   geom_raster(data = p, aes(X*1000, Y*1000, fill = exp(est1 + est2))) + 
-  geom_sf() + 
-  facet_wrap(~year, ncol = 7) + 
-  theme(legend.position.inside = c(0.95, 0.2)) + 
+  geom_sf(fill = "grey97", color = "grey70") + 
+  facet_wrap(~year, ncol = 5) + 
+  theme(legend.position.inside = c(0.81, 0.14),
+        legend.direction = "vertical",
+        legend.title = element_markdown()) + 
   guides(fill = guide_legend(position = "inside")) + 
   scale_fill_viridis_c(
-    name = "Predicted\nlitter\ndensity",
+    name = "Predicted<br>litter<br>density<br>(no/km<sup>2</sup>)",
     trans = "sqrt",
     # trim extreme high values to make spatial variation more visible
-    na.value = "yellow", limits = c(0, quantile(exp(p$est1 + p$est2), 0.995))
+    #na.value = "yellow", limits = c(0, quantile(exp(p$est1 + p$est2), 0.99))
   )
 
-quantile(exp(p$est1 + p$est2), 0.995)
+#quantile(exp(p$est1 + p$est2), 0.99)
 
-ggsave(paste0(home, "/figures/spatial_pred.pdf"), width = 20, height = 14, units = "cm")
+ggsave(paste0(home, "/figures/spatial_pred.pdf"), width = 17, height = 19, units = "cm")
 
 # Get index - density
 p_ind1 <- predict(fit2, newdata = pred_grid, return_tmb_object = TRUE)
@@ -239,10 +250,12 @@ ind <- bind_rows(ind1 |> mutate(Survey = "IBTS"),
 ggplot(ind, aes(year, est, color = Survey, fill = Survey)) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2, color = NA) +
   geom_line(alpha = 0.8) +
-  theme(strip.text = element_text(face = "italic")) +
+  theme(strip.text = element_text(face = "italic"),
+        legend.position.inside = c(0.85, 0.85)) +
   scale_color_brewer(palette = "Dark2") +
   scale_fill_brewer(palette = "Dark2") +
-  labs(x = "Year", y = "Relative litter weight")
+  labs(x = "Year", y = "Relative litter abundance") +
+  guides(color = guide_legend(position = "inside"))
 
-ggsave(paste0(home, "/figures/index.pdf"), width = 14, height = 10, units = "cm")
+ggsave(paste0(home, "/figures/index.pdf"), width = 11, height = 7, units = "cm")
 ```
