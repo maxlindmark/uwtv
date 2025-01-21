@@ -26,8 +26,9 @@ ggplot(rule, aes(n, value, color = name)) +
   labs(y = "Upper CI for litter presence",
        x = "Sample size") + 
   theme(legend.title = element_blank(),
-        legend.position.inside = c(0.8, 0.8)) +
+        legend.position.inside = c(0.8, 0.8),
+        plot.margin = unit(c(0.2, 0.5, 0.2, 0.2), "cm")) +
   guides(color = guide_legend(position = "inside")) +
   NULL
 
-ggsave(paste0(home, "/figures/rule_of_three.pdf"), width = 18, height = 18, units = "cm")
+ggsave(paste0(home, "/figures/rule_of_three.pdf"), width = 12, height = 12, units = "cm")

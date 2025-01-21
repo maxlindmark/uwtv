@@ -7,6 +7,7 @@ library(scales)
 library(parallel)
 library(ggtext)
 library(ggsidekick)
+library(egg)
 theme_set(theme_sleek())
 
 home <- here::here()
@@ -169,7 +170,7 @@ text <- results_df |>
   )
 
 
-ggplot(results_df, aes(x = factor(no_samples), y = est_mean)) +
+p1 <- ggplot(results_df, aes(x = factor(no_samples), y = est_mean)) +
   facet_wrap(~true_mean,
              scales = "free_y",
              labeller = labeller(true_mean = function(x) paste0("Litter density=", x, "/km\u00B2"))
@@ -180,7 +181,7 @@ ggplot(results_df, aes(x = factor(no_samples), y = est_mean)) +
   geom_hline(aes(yintercept = true_mean), linetype = "dashed", color = pal[6]) +
   geom_text(data = text, aes(x = factor(no_samples),
                              y = Inf,
-                             vjust = 1.5,
+                             vjust = 3.75,
                              label = round(zero_proportion, digits = 2)),
             color = "grey20", size = 3.3, position = position_dodge(width = 0.85), fontface = 1
             ) +
@@ -189,6 +190,8 @@ ggplot(results_df, aes(x = factor(no_samples), y = est_mean)) +
     y = "Litter density (km<sup>2</sup>)"
     ) + 
   theme(axis.title.y = element_markdown())
+
+tag_facet(p1, fontface = 1, open = "", close = "", tag_pool = LETTERS)
 
 ggsave(paste0(home, "/figures/sims.pdf"), width = 19, height = 14, units = "cm")
 
