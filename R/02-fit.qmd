@@ -257,6 +257,12 @@ ind |> summarise(mean = mean(est),
                  max = max(est),
                  min = min(est))
 
+ind |>
+  filter(year >= 2016) |> 
+  summarise(mean = mean(est),
+            max = max(est),
+            min = min(est))
+
 ggplot(ind, aes(year, est, color = Survey, fill = Survey)) +
   geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2, color = NA) +
   #xlim(2014, 2024) +
