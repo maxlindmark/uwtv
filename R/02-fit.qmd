@@ -232,43 +232,100 @@ quantile(exp(p$est1 + p$est2), 0.99)
 ggsave(paste0(home, "/figures/spatial_pred.pdf"), width = 17, height = 19, units = "cm")
 
 # Get index - density
-p_ind1 <- predict(fit2, newdata = pred_grid, return_tmb_object = TRUE)
-p_ind2 <- predict(fit2, newdata = pred_grid |> mutate(survey = "CTS"), return_tmb_object = TRUE) 
-
-ncells <- pred_grid |> filter(year == max(year)) |> nrow()
-
-ind1 <- get_index(p_ind1, 
-                  area = rep(1/ncells, nrow(p_ind1$data)),
-                  bias_correct = TRUE)
-
-ind2 <- get_index(p_ind2,
-                  area = rep(1/ncells, nrow(p_ind1$data)),
-                  bias_correct = TRUE)
-
-ind <- bind_rows(ind1 |> mutate(Survey = "IBTS"),
-                 ind2 |> mutate(Survey = "CTS"))
-
+# p_ind1 <- predict(fit2, newdata = pred_grid, return_tmb_object = TRUE)
+# p_ind2 <- predict(fit2, newdata = pred_grid |> mutate(survey = "CTS"), return_tmb_object = TRUE) 
+# 
+# ncells <- pred_grid |> filter(year == max(year)) |> nrow()
+# 
+# ind1 <- get_index(p_ind1, 
+#                   area = rep(1/ncells, nrow(p_ind1$data)),
+#                   bias_correct = TRUE)
+# 
+# ind2 <- get_index(p_ind2,
+#                   area = rep(1/ncells, nrow(p_ind1$data)),
+#                   bias_correct = TRUE)
+# 
+# ind <- bind_rows(ind1 |> mutate(Survey = "IBTS"),
+#                  ind2 |> mutate(Survey = "CTS"))
+# 
 means <- catch |>
   summarise(mean = mean(no_km2),
-            .by = c(year, survey)) |> 
+            .by = c(year, survey)) |>
   rename(Survey = survey)
+# 
+# ind |> summarise(mean = mean(est),
+#                  max = max(est),
+#                  min = min(est))
+# 
+# ind |>
+#   filter(year >= 2016) |> 
+#   summarise(mean = mean(est),
+#             max = max(est),
+#             min = min(est))
 
-ind |> summarise(mean = mean(est),
-                 max = max(est),
-                 min = min(est))
+# Manual prediction for IBTS level
+nd <- tibble(year = min(catch$year):max(catch$year)) |> 
+  mutate(survey = "IBTS",
+         year_f = as.factor(year))
 
-ind |>
-  filter(year >= 2016) |> 
-  summarise(mean = mean(est),
-            max = max(est),
-            min = min(est))
+pp <- predict(fit2, newdata = nd, re_form = NA, re_form_iid = NA, se_fit = TRUE)
 
-ggplot(ind, aes(year, est, color = Survey, fill = Survey)) +
-  geom_ribbon(aes(ymin = lwr, ymax = upr), alpha = 0.2, color = NA) +
-  #xlim(2014, 2024) +
-  #stat_smooth() +
-  #geom_point(data = means, aes(year, mean, color = Survey)) + 
-  geom_line(alpha = 0.8) +
+pp <- pp |>
+  mutate(est2 = exp(est),
+         lwr = exp(est - est_se*1.96),
+         upr = exp(est + est_se*1.96))
+
+pp |> summarise(mean = mean(est2),
+                max = max(est2),
+                min = min(est2))
+
+# GAM to highlight trends
+# m <- sdmTMB(est2 ~ s(year),
+#             data = pp |> dplyr::select(est2, year),
+#             spatial = "off",
+#             family = Gamma(link = "log"))
+# 
+# sanity(m)
+# 
+# pp_gam <- predict(m, newdata = nd) |> 
+#   mutate(est2 = exp(est))
+# 
+# pp_gam
+
+# https://stats.stackexchange.com/questions/273296/use-coefficient-of-variation-as-weight-in-gam
+
+# Inverse variance as weight?
+pp2 <- pp |> 
+  mutate(cv = est_se / est,
+         weight = 1/cv,
+         weights_cs = weight / mean(weight))
+
+library(mgcv)
+gamw <- gam(est2 ~ year,
+            family = Gamma(link = "log"),
+            weights = weight,
+            data = pp2)
+
+summary(gamw)
+
+nd$est <- predict(gamw, newdata = nd)
+nd$est_se <- predict(gamw, newdata = nd, se.fit = TRUE)$se.fit
+
+nd <- nd |> 
+  mutate(est2 = exp(est),
+         lwr = exp(est - est_se*1.96),
+         upr = exp(est + est_se*1.96))
+
+nd
+
+pal <- brewer.pal(3, "Dark2")
+
+ggplot(pp, aes(year, est2)) +
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0, alpha = 0.6) +
+  geom_point() +
+  geom_line(data = nd, aes(year, est2), color = pal[2]) +
+  geom_ribbon(data = nd, aes(ymin = lwr, ymax = upr), alpha = 0.15, fill = pal[2]) +
+  #geom_point(data = means |> filter(Survey == "IBTS"), aes(year, mean, color = "data")) + 
   theme(strip.text = element_text(face = "italic"),
         axis.title.y = element_markdown(),
         legend.position.inside = c(0.85, 0.85)) +
@@ -279,5 +336,9 @@ ggplot(ind, aes(year, est, color = Survey, fill = Survey)) +
 
 ggsave(paste0(home, "/figures/index.pdf"), width = 11, height = 7, units = "cm")
 
+((52.1-26.4)/52.1)*100
+
 # Mean index
 ```
+
+
