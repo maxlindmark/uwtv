@@ -46,7 +46,7 @@ for(i in c(100, 500, 1000, 5000)){
 }
 
 plot_dim <- 200/4
-sample_size <- 184/4
+sample_size <- 148/4
 
 # Add hypothetical transect
 start_row <- sample(1:plot_dim, 1)
@@ -104,7 +104,7 @@ do_sims <- function(mean_per_km2, no_samples_list, no_sims) {
   results <- lapply(no_samples_list, function(no_samples) {
     sims <- replicate(no_sims, {
       samples <- take_samples(km2, no_samples)
-      mean(samples) / 184 * 1000000 # Omvandla till skräp per km²
+      mean(samples) / 148 * 1000000 # convert to litter per km2
     })
     
     data.frame(
