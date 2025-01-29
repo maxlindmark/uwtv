@@ -77,8 +77,8 @@ ggplot(simsp) +
 ggsave(paste0(home, "/figures/sample_map.pdf"), width = 19, height = 17, units = "cm")
 
 # Now do the sampling
-# Function to take samples that are 1x184 meter transects, horizontally or vertically
-take_samples <- function(km2, no_samples, sample_size = 184) {
+# Function to take samples that are 1x148 meter transects, horizontally or vertically
+take_samples <- function(km2, no_samples, sample_size = 148) {
   replicate(no_samples, {
     # Slumpmässigt välja om remsan ska vara horizontal (TRUE) eller vertikal (FALSE)
     horizontal <- sample(c(TRUE, FALSE), 1)
