@@ -89,29 +89,29 @@ pred_grid <- read_csv(paste0(home, "/data/pred_grid.csv")) |>
 ```{r}
 # Add UWTV as well
 
-d4 <- read_csv(paste0(home, "/data/Megafauna_stn_litter.csv")) |> 
-  rename(lon = Lon, 
-         lat = Lat) |> 
-  add_utm_columns(ll_names = c("lon", "lat")) |> 
+d4 <- read_csv(paste0(home, "/data/Megafauna_stn_litter.csv")) |>
+  rename(lon = Lon,
+         lat = Lat) |>
+  add_utm_columns(ll_names = c("lon", "lat")) |>
   mutate(survey = "UWTV",
          year = 2024)
 
 pd <- bind_rows(catch, d4)
-
-# Plot data
-pd |> 
-  filter(!survey == "UWTV") |> 
-  summarise(mean = mean(no_km2), .by = c(year, survey)) |> 
-  ggplot(aes(year, mean, color = survey)) + 
-  geom_point() + 
-  geom_line() + 
-  theme(legend.position.inside = c(0.81, 0.81),
-        axis.title.y = element_markdown()) +
-  scale_color_brewer(palette = "Dark2", name = "Survey") +
-  labs(x = "Year", y = "Mean density (no/km<sup>2</sup>)") + 
-  guides(color = guide_legend(position = "inside"))
-
-ggsave(paste0(home, paste("/figures/supp/survey_data.pdf")), width = 17, height = 11, units = "cm")
+ 
+# # Plot data
+# pd |> 
+#   filter(!survey == "UWTV") |> 
+#   summarise(mean = mean(no_km2), .by = c(year, survey)) |> 
+#   ggplot(aes(year, mean, color = survey)) + 
+#   geom_point() + 
+#   geom_line() + 
+#   theme(legend.position.inside = c(0.81, 0.81),
+#         axis.title.y = element_markdown()) +
+#   scale_color_brewer(palette = "Dark2", name = "Survey") +
+#   labs(x = "Year", y = "Mean density (no/km<sup>2</sup>)") + 
+#   guides(color = guide_legend(position = "inside"))
+# 
+# ggsave(paste0(home, paste("/figures/supp/survey_data.pdf")), width = 17, height = 11, units = "cm")
 
 
 plot_map + 
