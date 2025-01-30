@@ -113,11 +113,33 @@ pd <- bind_rows(catch, d4)
 # 
 # ggsave(paste0(home, paste("/figures/supp/survey_data.pdf")), width = 17, height = 11, units = "cm")
 
+skag_kat_border <- data.frame(lat1 = 57.75420, 
+                              lat2 = 57.91694673025835,
+                              lon1 = 10.61630,
+                              lon2 = 11.502651981474733) 
+
+skag_kat_border <- skag_kat_border |> 
+  add_utm_columns(utm_names = c("X1", "Y1"),
+                  ll_names = c("lon1", "lat1")) |> 
+  add_utm_columns(utm_names = c("X2", "Y2"),
+                  ll_names = c("lon2", "lat2"))
+
+
+ann_text <- data.frame(year = 2012, 
+                       label = c("Skagerrak", "Kattegat"),
+                       lon = c(10.75, 11.2),
+                       lat = c(58.2, 57.5)) |> 
+  add_utm_columns(ll_names = c("lon", "lat"))
 
 plot_map + 
   geom_sf(fill = "grey97", color = "grey70") + 
+  geom_segment(data = skag_kat_border, aes(x = X1*1000, xend = X2*1000,
+                                           y = Y1*1000, yend = Y2*1000),
+               alpha = 0.75, linetype = 3) + 
   geom_point(data = pd,
              aes(X*1000, Y*1000, color = survey), size = 0.8) +
+  geom_text(data = ann_text, aes(x = X*1000, y = Y*1000, label = label),
+            color = "gray50", size = 2.7) +
   #Annotate works well when not faceting... need to ggsave to make sure
   # annotate("text", label = "Sweden", color = "gray50", size = 5,
   #          x = Inf, y = Inf, hjust = 1.5, vjust = 20) +
