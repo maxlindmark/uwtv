@@ -187,7 +187,7 @@ p1 <- ggplot(results_df, aes(x = factor(no_samples), y = est_mean)) +
             ) +
   labs(
     x = "Number of hauls",
-    y = "Litter density (km<sup>2</sup>)"
+    y = "Litter density (no/km<sup>2</sup>)"
     ) + 
   theme(axis.title.y = element_markdown())
 

@@ -1,5 +1,5 @@
 ---
-title: "Fit length models"
+title: "Fit models"
 author: "Max Lindmark"
 date: today
 date-format: iso
@@ -166,7 +166,6 @@ p_mesh <- ggplot() +
   inlabru::gg(mesh$mesh) +
   coord_fixed() +
   geom_point(aes(X, Y), data = catch, alpha = 0.2, size = 0.5) +
-  annotate("text", -Inf, Inf, label = paste("n knots = ", mesh$mesh$n), hjust = -0.1, vjust = 2) +
   labs(x = "Easting (km)", y = "Northing (km)")
 
 p_mesh
